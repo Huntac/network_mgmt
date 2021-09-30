@@ -47,8 +47,8 @@ class ActorNetwork(keras.Model):
         layer_1_dims: int = 512,
         layer_2_dims: int = 512,
         name:str = 'actor',
-        checkpoint_dir: str = 'tmp/checkpoints/ddpg'
-    ):
+        checkpoint_dir: str = 'tmp/checkpoints/ddpg'):
+        
         super(ActorNetwork, self).__init__()
         self.layer_1_dims = layer_1_dims
         self.layer_2_dims = layer_2_dims
