@@ -6,9 +6,12 @@ from ddpg_networks import ActorNetwork, CriticNetwork
 
 
 class Agent:
+    """
+        DDPG Agent class
+    """
     def __init__(
         self,
-        input_dims,
+        input_dims: tuple,
         n_actions: int,
         alpha: float = 0.001,
         beta: float = 0.002,
@@ -28,8 +31,8 @@ class Agent:
         self.gamma = gamma
         self.tau = tau
         self.batch_size = batch_size
-        self.max_action = env.action_space.high[0]
-        self.min_action = env.action_space.low[0]
+        self.max_action = env.action_space.high
+        self.min_action = env.action_space.low
         self.action_range = self.max_action - self.min_action
         self.n_actions = n_actions
         self.nosie = noise
@@ -51,9 +54,13 @@ class Agent:
 
         # Hard copy initial weights from local networks to target networks
         #   so the networks are identical
-        self.update_network_parameters(tau  = 1)
+        self.update_network_parameters(tau = 1.0)
 
-    def update_network_parameters(self, tau = None):
+
+    def update_network_parameters(self, tau: float= None):
+        """
+        Apply soft update from local net weights to target net weights
+        """
         if tau is None:
             # Allow to hard copy weights when agent is initialized
             tau = self.tau
@@ -72,12 +79,14 @@ class Agent:
             weights.append(weight * tau + targets[i]*(1-tau))
         self.critic_target.set_weights(weights)
 
+
     def save_models(self):
         print('saving models')
         self.actor_local.save_weights(self.actor_local.checkpoint_file)
         self.actor_target.save_weights(self.actor_target.checkpoint_file)
         self.critic_local.save_weights(self.critic_local.checkpoint_file)
         self.critic_target.save_weights(self.critic_target.checkpoint_file)
+
 
     def load_models(self):
         print('loading models')
@@ -86,7 +95,15 @@ class Agent:
         self.critic_local.load_weights(self.critic_local.checkpoint_file)
         self.critic_target.load_weights(self.critic_target.checkpoint_file)
 
-    def choose_action(self, observation, evalute = False):
+
+    def choose_action(self, observation: np.ndarray, evaluate: bool = False):
+        """
+        Choose an action by passing state to self.actor_local
+          
+        Scale action according to environment.
+        If not evaluating apply noise for exploration.
+        Clip Resulting actions if outside of environment bounds.
+        """
         state = tf.convert_to_tensor([observation], dtype = tf.float32)
         actions = self.actor_local(state)
         if not evaluate:
@@ -104,7 +121,15 @@ class Agent:
 
         return actions.numpy()
 
+
     def learn(self):
+        """
+        Adjust Network weights based on stored experiences
+
+        Calculate critic and actor loss and update local network
+          weights based on loss grads.
+        Apply soft update to target networks.
+        """
         if len(self.memory) < self.batch_size:
             # Only learn once enough memories have been stored
             return
@@ -151,8 +176,8 @@ class Agent:
             actor_loss = tf.math.reduce_mean(actor_loss)
 
         # Because we're passing actor_local predictions into critic_local as input 
-        #   tf.GradientTape() allows us to calculate the gradient of actor_local's
-        #   trainable variable w.r.t the negative Q value from critic_local
+        #   tf.GradientTape() allows us to calculate the gradient of the negative 
+        #   Q value from critic_local w.r.t actor_local's trainable variables
         actor_network_gradient = tape.gradient(actor_loss,
         self.actor_local.trainable_variables)
 

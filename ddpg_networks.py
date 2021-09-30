@@ -4,6 +4,9 @@ import tensorflow.keras as keras
 from tensorflow.keras.layers import Dense
 
 class CriticNetwork(keras.Model):
+    """
+    Define 2 layer dense critic network
+    """
     def __init__(
         self, 
         layer_1_dims: int, 
@@ -26,8 +29,8 @@ class CriticNetwork(keras.Model):
         self.layer_2_dense = Dense(self.layer_2_dims, activation = 'relu')
         self.q = Dense(1, activation = None)
 
-    def call(self, state, action):
-        action_value = self.layer_1_dense(tf.concat([state, action]), axis = 1)
+    def call(self, state: tf.tensor, action: tf.tensor):
+        action_value = self.layer_1_dense(tf.concat([state, action], axis = 1))
         action_value = self.layer_2_dense(action_value)
 
         q = self.q(action_value)
@@ -35,13 +38,16 @@ class CriticNetwork(keras.Model):
         return q
         
 class ActorNetwork(keras.Model):
+    """
+    Define 2 dense layer NN
+    """
     def __init__(
         self,
         n_actions: int,
         layer_1_dims: int = 512,
         layer_2_dims: int = 512,
         name:str = 'actor',
-        checkpoint_dir = 'tmp/checkpoints/ddpg'
+        checkpoint_dir: str = 'tmp/checkpoints/ddpg'
     ):
         super(ActorNetwork, self).__init__()
         self.layer_1_dims = layer_1_dims
@@ -59,7 +65,7 @@ class ActorNetwork(keras.Model):
         self.layer_2_dense = Dense(self.layer_2_dims, activation = 'relu')
         self.mu = Dense(self.n_actions, activation = 'sigmoid')
 
-    def call(self, state):
+    def call(self, state: tf.tensor):
         prob = self.layer_1_dense(state)
         prob = self.layer_2_dense(prob)
 

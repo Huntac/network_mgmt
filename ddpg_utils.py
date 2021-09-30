@@ -3,10 +3,12 @@ from collections import namedtuple, deque
 import copy
 import numpy as np
 class ReplayBuffer:
+
+    
     """
     Buffer to store experiences for DDPG actor and critic training.
     """
-    def __init__(self, buffer_size, batch_size):
+    def __init__(self, buffer_size: int, batch_size: int):
         """
         Initialize an instance of ReplayBuffer.
 
@@ -22,7 +24,14 @@ class ReplayBuffer:
         self.batch_size = batch_size
         self.experience = namedtuple("experience", ['state', 'action', 'reward', 'next_state', 'done'])
 
-    def add(self, state, action, reward, next_state, done):
+
+    def add(
+        self, 
+        state: np.ndarray,
+        action: np.ndarray, 
+        reward: np.ndarray, 
+        next_state: np.ndarray, 
+        done: bool):
         """
             Stores experiences as a named tuple in a deque.
                 
@@ -40,12 +49,13 @@ class ReplayBuffer:
                             produced by the agent's action 
                     next_state (array_like): representation of the 
                                 state as a result of the agent's action
-                    done (array_like): Usually boolean, was this 
+                    done bool: Usually boolean, was this 
                           experience the last experience in an episode?
         """
         e = self.experience(state, action, reward, next_state, done)
 
         self.memory.append(e)
+
 
     def sample(self):
         """
@@ -53,28 +63,35 @@ class ReplayBuffer:
         """
         return random.sample(self.memory, k = self.batch_size)
 
+
     def __len__(self):
         return len(self.memory)
 
+
 class OUNoise:
+
+
     """
     Instantiation of Ornstein - Uhlenbeck process 
     """
-    def __init__(self, size, mu, theta, sigma):
+    def __init__(self, size: int, mu: float, theta: float, sigma: float):
         self.mu = mu * np.ones(size)
         self.theta = theta
         self.sigma = sigma
+        # sets self.state such that self.mu remeains stationary throughout sampling
         self.reset()
     
+
     def reset(self):
         """
         Reset process to initial state
         """
         self.state = copy.copy(self.mu)
 
+
     def sample(self):
         """
-        Step process, return new state
+        Step process, return new sample of OU noise process
         """
         x = self.state
         dx = self.theta * (self.mu-x) + self.sigma * np.random.randn(len(x))
