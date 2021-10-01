@@ -9,8 +9,8 @@ class CriticNetwork(keras.Model):
     """
     def __init__(
         self, 
-        layer_1_dims: int, 
-        layer_2_dims: int,
+        layer_1_dims: int = 512, 
+        layer_2_dims: int = 512,
         name: str = 'critic', 
         checkpoint_dir: str = 'tmp/checkpoints/ddpg'):
 
@@ -29,7 +29,7 @@ class CriticNetwork(keras.Model):
         self.layer_2_dense = Dense(self.layer_2_dims, activation = 'relu')
         self.q = Dense(1, activation = None)
 
-    def call(self, state: tf.tensor, action: tf.tensor):
+    def call(self, state: tf.Tensor, action: tf.Tensor):
         action_value = self.layer_1_dense(tf.concat([state, action], axis = 1))
         action_value = self.layer_2_dense(action_value)
 
@@ -48,7 +48,7 @@ class ActorNetwork(keras.Model):
         layer_2_dims: int = 512,
         name:str = 'actor',
         checkpoint_dir: str = 'tmp/checkpoints/ddpg'):
-        
+
         super(ActorNetwork, self).__init__()
         self.layer_1_dims = layer_1_dims
         self.layer_2_dims = layer_2_dims
@@ -65,7 +65,7 @@ class ActorNetwork(keras.Model):
         self.layer_2_dense = Dense(self.layer_2_dims, activation = 'relu')
         self.mu = Dense(self.n_actions, activation = 'sigmoid')
 
-    def call(self, state: tf.tensor):
+    def call(self, state: tf.Tensor):
         prob = self.layer_1_dense(state)
         prob = self.layer_2_dense(prob)
 

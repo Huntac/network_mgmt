@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
+import gym
 from ddpg_utils import ReplayBuffer
 from ddpg_networks import ActorNetwork, CriticNetwork
 
@@ -15,7 +16,7 @@ class Agent:
         n_actions: int,
         alpha: float = 0.001,
         beta: float = 0.002,
-        env: gym.env = None,
+        env: gym.Env = None,
         gamma: float = 0.99,
         tau: float = 0.001,
         noise: float = 0.1,
@@ -44,13 +45,13 @@ class Agent:
         self.critic_local = CriticNetwork(name = 'critic_local')
         self.critic_target = CriticNetwork(name = 'critic_target')
 
-        self.actor_local.compile(optimizer = Adam(learning_rate = alpha))
-        self.critic_local.compile(optimizer = Adam(learning_rate = beta))
+        self.actor_local.compile(optimizer = tf.optimizers.Adam(learning_rate = alpha))
+        self.critic_local.compile(optimizer = tf.optimizers.Adam(learning_rate = beta))
 
         # optimizer only passed so that these models compile
         # the weights of these networks will be updated via Agent.update_network_parameters
-        self.actor_target.compile(optimizer = Adam(learning_rate = alpha))
-        self.critic_target.compile(optimizer = Adam(learning_rate = beta))
+        self.actor_target.compile(optimizer = tf.optimizers.Adam(learning_rate = alpha))
+        self.critic_target.compile(optimizer = tf.optimizers.Adam(learning_rate = beta))
 
         # Hard copy initial weights from local networks to target networks
         #   so the networks are identical
@@ -137,11 +138,11 @@ class Agent:
         experiences = self.memory.sample()
 
         # Unpack experience components
-        states = np.vstack(e.state for e in experiences if e is not None)
-        actions = np.vstack(e.action for e in experiences if e is not None)
-        rewards = np.vstack(e.reward for e in experiences if e is not None)
-        dones = np.vstack(e.done for e in experiences if e is not None)
-        next_states = np.vstack(e.next_state for e in experiences if e is not None)
+        states = np.vstack([e.state for e in experiences if e is not None])
+        actions = np.vstack([e.action for e in experiences if e is not None])
+        rewards = np.vstack([e.reward for e in experiences if e is not None])
+        dones = np.vstack([e.done for e in experiences if e is not None])
+        next_states = np.vstack([e.next_state for e in experiences if e is not None])
 
         # conver experiences to tensor
         states = tf.convert_to_tensor(states, dtype = tf.float32)
@@ -157,7 +158,7 @@ class Agent:
 
             # Target Q value is the observed reward plus the discounted reward of the 
             #   following time step unless the reward is from a terminal step
-            target = reward + self.gamma*next_values*(1-dones)
+            target = rewards + self.gamma*next_values*(1-dones)
             critic_loss = keras.losses.MSE(target, values)
 
         critic_network_gradient = tape.gradient(
@@ -181,7 +182,7 @@ class Agent:
         actor_network_gradient = tape.gradient(actor_loss,
         self.actor_local.trainable_variables)
 
-        self.actor_local.optimizer.apply_gradient(
+        self.actor_local.optimizer.apply_gradients(
             zip(actor_network_gradient, self.actor_local.trainable_variables)
         )
 
