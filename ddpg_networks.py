@@ -25,9 +25,27 @@ class CriticNetwork(keras.Model):
             self.model_name + '.h5'
         )
 
-        self.layer_1_dense = Dense(self.layer_1_dims, activation = 'relu')
-        self.layer_2_dense = Dense(self.layer_2_dims, activation = 'relu')
-        self.q = Dense(1, activation = None)
+        initializer = keras.initializers.VarianceScaling(
+            scale = 0.3333,
+            mode = 'fan_in',
+            distribution= 'uniform'
+        )
+
+        final_initializer = keras.initializers.RandomUniform(minval = -0.003, maxval=0.003)
+
+        self.layer_1_dense = Dense(
+            self.layer_1_dims, 
+            activation = 'relu',
+            kernel_initializer= initializer)
+        self.layer_2_dense = Dense(
+            self.layer_2_dims, 
+            activation = 'relu',
+            kernel_initializer= initializer)
+        self.q = Dense(
+            1, 
+            activation = None,
+            kernel_initializer = final_initializer,
+            bias_initializer = final_initializer)
 
     def call(self, state: tf.Tensor, action: tf.Tensor):
         action_value = self.layer_1_dense(tf.concat([state, action], axis = 1))
@@ -61,14 +79,32 @@ class ActorNetwork(keras.Model):
             self.model_name + '.h5'
         )
 
-        self.layer_1_dense = Dense(self.layer_1_dims, activation = 'relu')
-        self.layer_2_dense = Dense(self.layer_2_dims, activation = 'relu')
-        self.mu = Dense(self.n_actions, activation = 'sigmoid')
+        initializer = keras.initializers.VarianceScaling(
+            scale = 0.3333,
+            mode = 'fan_in',
+            distribution= 'uniform'
+        )
+
+        final_initializer = keras.initializers.RandomUniform(minval = -0.003, maxval= 0.003)
+
+        self.layer_1_dense = Dense(
+            self.layer_1_dims, 
+            activation = 'relu',
+            kernel_initializer= initializer)
+        self.layer_2_dense = Dense(
+            self.layer_2_dims,
+            activation = 'relu',
+            kernel_initializer= initializer)
+        self.mu = Dense(
+            self.n_actions, 
+            activation = 'sigmoid', 
+            kernel_initializer=final_initializer,
+            bias_initializer=final_initializer)
 
     def call(self, state: tf.Tensor):
         prob = self.layer_1_dense(state)
         prob = self.layer_2_dense(prob)
 
-        mu = self.mu(prob)  # output will be adjusted by action bounds in agent class
+        mu = self.mu(prob)  # output is adjusted by action bounds in agent class
 
         return mu
