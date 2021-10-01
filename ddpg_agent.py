@@ -32,15 +32,23 @@ class Agent:
         self.gamma = gamma
         self.tau = tau
         self.batch_size = batch_size
-        self.max_action = env.action_space.high
-        self.min_action = env.action_space.low
+        self.max_action = env.action_space.high[0]
+        self.min_action = env.action_space.low[0]
         self.action_range = self.max_action - self.min_action
         self.n_actions = n_actions
-        self.nosie = noise
+        self.noise = noise
 
         # Networks
-        self.actor_local = ActorNetwork(n_actions = n_actions, name = 'actor_local')
-        self.actor_target = ActorNetwork(n_actions = n_actions, name = 'actor_target')
+        self.actor_local = ActorNetwork(
+            n_actions = n_actions, 
+            action_range = self.action_range, 
+            action_min = self.min_action, 
+            name = 'actor_local')
+        self.actor_target = ActorNetwork(
+            n_actions = n_actions, 
+            action_range = self.action_range, 
+            action_min = self.min_action, 
+            name = 'actor_target')
         
         self.critic_local = CriticNetwork(name = 'critic_local')
         self.critic_target = CriticNetwork(name = 'critic_target')
@@ -112,10 +120,7 @@ class Agent:
             actions += tf.random.normal(
                 shape=[self.n_actions], 
                 mean = 0, 
-                stddev = self.nosie)
-
-        # scale sigmoid value with action range
-        actions = tf.math.multiply(actions, self.action_range)
+                stddev = self.noise)
 
         # clip scaled action to be within environment action range
         actions = tf.clip_by_value(actions, self.min_action, self.max_action)

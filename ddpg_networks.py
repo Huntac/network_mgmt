@@ -3,6 +3,15 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.layers import Dense
 
+class ScaleLayer(keras.layers.Layer):
+    def __init__(self, action_range, min_action):
+        super(ScaleLayer, self).__init__()
+        self.action_range = tf.Variable(action_range, trainable = False, dtype = tf.float32)
+        self.min_action = tf.Variable(min_action, trainable = False, dtype = tf.float32)
+
+    def __call__(self, input):
+        return tf.math.multiply(input, self.action_range) + self.min_action
+
 class CriticNetwork(keras.Model):
     """
     Define 2 layer dense critic network
@@ -62,6 +71,8 @@ class ActorNetwork(keras.Model):
     def __init__(
         self,
         n_actions: int,
+        action_range: tf.float32,
+        action_min: tf.float32,
         layer_1_dims: int = 512,
         layer_2_dims: int = 512,
         name:str = 'actor',
@@ -71,6 +82,8 @@ class ActorNetwork(keras.Model):
         self.layer_1_dims = layer_1_dims
         self.layer_2_dims = layer_2_dims
         self.n_actions = n_actions
+        self.action_range = action_range
+        self.action_min = action_min
 
         self.model_name = name
         self.checkpoint_dir = checkpoint_dir
@@ -101,10 +114,14 @@ class ActorNetwork(keras.Model):
             kernel_initializer=final_initializer,
             bias_initializer=final_initializer)
 
+        self.scaling_layer = ScaleLayer(self.action_range, self.action_min)
+
     def call(self, state: tf.Tensor):
         prob = self.layer_1_dense(state)
         prob = self.layer_2_dense(prob)
 
-        mu = self.mu(prob)  # output is adjusted by action bounds in agent class
+        mu_raw = self.mu(prob) 
+
+        mu = self.scaling_layer(mu_raw)
 
         return mu
