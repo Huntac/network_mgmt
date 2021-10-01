@@ -4,6 +4,9 @@ import tensorflow.keras as keras
 from tensorflow.keras.layers import Dense
 
 class ScaleLayer(keras.layers.Layer):
+    """
+    Kares layer subclass to scale raw sigmoid output to appropriate value
+    """
     def __init__(self, action_range, min_action):
         super(ScaleLayer, self).__init__()
         self.action_range = tf.Variable(action_range, trainable = False, dtype = tf.float32)
@@ -11,6 +14,16 @@ class ScaleLayer(keras.layers.Layer):
 
     def __call__(self, input):
         return tf.math.multiply(input, self.action_range) + self.min_action
+
+class NoiseLayer(keras.layers.Layer):
+    """
+    Keras layer subclass to apply exploration noise to raw actions
+    """
+    def __init__(self):
+        super(NoiseLayer, self).__init__()
+
+    def __call__(self, input, noise):
+        return tf.math.add(input, noise)
 
 class CriticNetwork(keras.Model):
     """
@@ -114,13 +127,19 @@ class ActorNetwork(keras.Model):
             kernel_initializer=final_initializer,
             bias_initializer=final_initializer)
 
+        self.noise_layer = NoiseLayer()
         self.scaling_layer = ScaleLayer(self.action_range, self.action_min)
 
-    def call(self, state: tf.Tensor):
+    def call(self, state: tf.Tensor, noise: tf.Tensor = None):
         prob = self.layer_1_dense(state)
         prob = self.layer_2_dense(prob)
 
         mu_raw = self.mu(prob) 
+
+        if noise is None:
+            noise = tf.zeros(mu_raw.shape)
+            
+        mu_raw = self.noise_layer(mu_raw, noise)
 
         mu = self.scaling_layer(mu_raw)
 

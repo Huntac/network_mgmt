@@ -114,13 +114,17 @@ class Agent:
         Clip Resulting actions if outside of environment bounds.
         """
         state = tf.convert_to_tensor([observation], dtype = tf.float32)
-        actions = self.actor_local(state)
+
         if not evaluate:
             # if not evaluating add noise for exploration
-            actions += tf.random.normal(
+            noise= tf.random.normal(
                 shape=[self.n_actions], 
                 mean = 0, 
                 stddev = self.noise)
+
+            actions = self.actor_local(state, noise)
+        else:
+            actions = self.actor_local(state)
 
         # clip scaled action to be within environment action range
         actions = tf.clip_by_value(actions, self.min_action, self.max_action)
