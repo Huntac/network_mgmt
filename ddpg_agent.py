@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
 import gym
-from ddpg_utils import ReplayBuffer
+from ddpg_utils import npReplayBuffer, OUNoise
 from ddpg_networks import ActorNetwork, CriticNetwork
 
 
@@ -18,15 +18,17 @@ class Agent:
         beta: float = 0.002,
         env: gym.Env = None,
         gamma: float = 0.99,
-        tau: float = 0.001,
-        noise: float = 0.1,
+        tau: float = 0.005,
+        noise_scale: float = 1.0,
+        theta: float = 0.15,
+        sigma: float = 0.2,
         layer_1_dims: int = 400,
         layer_2_dims: int = 300,
         buffer_size: int = 1000000,
         batch_size: int = 64
     ):
         # initializes utilities
-        self.memory = ReplayBuffer(buffer_size, batch_size)
+        self.memory = npReplayBuffer(buffer_size, input_dims, n_actions)
         
         # DDPG parameters
         self.gamma = gamma
@@ -36,7 +38,7 @@ class Agent:
         self.min_action = env.action_space.low[0]
         self.action_range = self.max_action - self.min_action
         self.n_actions = n_actions
-        self.noise = noise
+        self.noise = OUNoise(n_actions, noise_scale, theta, sigma)
 
         # Networks
         self.actor_local = ActorNetwork(
@@ -53,13 +55,13 @@ class Agent:
         self.critic_local = CriticNetwork(name = 'critic_local')
         self.critic_target = CriticNetwork(name = 'critic_target')
 
-        self.actor_local.compile(optimizer = tf.optimizers.Adam(learning_rate = alpha))
-        self.critic_local.compile(optimizer = tf.optimizers.Adam(learning_rate = beta))
+        self.actor_local.compile(optimizer = keras.optimizers.Adam(learning_rate = alpha))
+        self.critic_local.compile(optimizer = keras.optimizers.Adam(learning_rate = beta))
 
         # optimizer only passed so that these models compile
         # the weights of these networks will be updated via Agent.update_network_parameters
-        self.actor_target.compile(optimizer = tf.optimizers.Adam(learning_rate = alpha))
-        self.critic_target.compile(optimizer = tf.optimizers.Adam(learning_rate = beta))
+        self.actor_target.compile(optimizer = keras.optimizers.Adam(learning_rate = alpha))
+        self.critic_target.compile(optimizer = keras.optimizers.Adam(learning_rate = beta))
 
         # Hard copy initial weights from local networks to target networks
         #   so the networks are identical
@@ -105,6 +107,10 @@ class Agent:
         self.critic_target.load_weights(self.critic_target.checkpoint_file)
 
 
+    def remember(self, state, action, reward, new_state, done):
+        self.memory.store_transition(state, action, reward, new_state, done)
+
+
     def choose_action(self, observation: np.ndarray, evaluate: bool = False):
         """
         Choose an action by passing state to self.actor_local
@@ -117,19 +123,15 @@ class Agent:
 
         if not evaluate:
             # if not evaluating add noise for exploration
-            noise= tf.random.normal(
-                shape=[self.n_actions], 
-                mean = 0, 
-                stddev = self.noise)
-
-            actions = self.actor_local(state, noise)
+            noise = tf.convert_to_tensor([self.noise.sample()], dtype = tf.float32)
+            actions = self.actor_local(state) + self.actor_local.scaling_layer(noise)
         else:
             actions = self.actor_local(state)
 
         # clip scaled action to be within environment action range
         actions = tf.clip_by_value(actions, self.min_action, self.max_action)
 
-        return actions.numpy()
+        return actions[0]
 
 
     def learn(self):
@@ -140,35 +142,29 @@ class Agent:
           weights based on loss grads.
         Apply soft update to target networks.
         """
-        if len(self.memory) < self.batch_size:
+        if self.memory.mem_center < self.batch_size:
             # Only learn once enough memories have been stored
             return
 
-        experiences = self.memory.sample()
-
-        # Unpack experience components
-        states = np.vstack([e.state for e in experiences if e is not None])
-        actions = np.vstack([e.action for e in experiences if e is not None])
-        rewards = np.vstack([e.reward for e in experiences if e is not None])
-        dones = np.vstack([e.done for e in experiences if e is not None])
-        next_states = np.vstack([e.next_state for e in experiences if e is not None])
+        state, action, reward, new_state, done = \
+            self.memory.sample_buffer(self.batch_size)
 
         # conver experiences to tensor
-        states = tf.convert_to_tensor(states, dtype = tf.float32)
-        next_states = tf.convert_to_tensor(next_states, dtype = tf.float32)
-        actions = tf.convert_to_tensor(actions, dtype = tf.float32)
-        rewards = tf.convert_to_tensor(rewards, dtype = tf.float32)
+        states = tf.convert_to_tensor(state, dtype = tf.float32)
+        next_states = tf.convert_to_tensor(new_state, dtype = tf.float32)
+        actions = tf.convert_to_tensor(action, dtype = tf.float32)
+        rewards = tf.convert_to_tensor(reward, dtype = tf.float32)
 
         # Train 
         with tf.GradientTape() as tape:
-            next_actions = self.actor_target(next_states)
-            next_values = tf.squeeze(self.critic_target(next_states, next_actions), 1)
-            values = tf.squeeze(self.critic_local(states, actions), 1)
+            target_actions = self.actor_target(next_states)
+            target_critic_value = tf.squeeze(self.critic_target(next_states, target_actions), 1)
+            local_critic_value = tf.squeeze(self.critic_local(states, actions), 1)
 
             # Target Q value is the observed reward plus the discounted reward of the 
             #   following time step unless the reward is from a terminal step
-            target = rewards + self.gamma*next_values*(1-dones)
-            critic_loss = keras.losses.MSE(target, values)
+            target = rewards + self.gamma*target_critic_value*(1-done)
+            critic_loss = keras.losses.MSE(target, local_critic_value)
 
         critic_network_gradient = tape.gradient(
             critic_loss, 

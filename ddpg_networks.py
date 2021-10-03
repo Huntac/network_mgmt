@@ -123,23 +123,17 @@ class ActorNetwork(keras.Model):
             kernel_initializer= initializer)
         self.mu = Dense(
             self.n_actions, 
-            activation = 'sigmoid', 
+            activation = 'tanh', 
             kernel_initializer=final_initializer,
             bias_initializer=final_initializer)
 
-        self.noise_layer = NoiseLayer()
         self.scaling_layer = ScaleLayer(self.action_range, self.action_min)
 
-    def call(self, state: tf.Tensor, noise: tf.Tensor = None):
+    def call(self, state: tf.Tensor):
         prob = self.layer_1_dense(state)
         prob = self.layer_2_dense(prob)
 
         mu_raw = self.mu(prob) 
-
-        if noise is None:
-            noise = tf.zeros(mu_raw.shape)
-            
-        mu_raw = self.noise_layer(mu_raw, noise)
 
         mu = self.scaling_layer(mu_raw)
 
